@@ -1,0 +1,27 @@
+{
+  "name": "KNUE_Portal_API_Server",
+  "version": "\\",
+  "main": "index.js",
+  "repository": "https://github.com/m1ns2o/KNUE_Portal_API_Server.git",
+  "author": "MINSEO JEONG <srjms0128@knue.ac.kr>",
+  "license": "MIT",
+  "private": false,
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^11.0.0",
+    "@fastify/formbody": "^8.0.2",
+    "axios": "^1.8.3",
+    "fastify": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only index.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  }
+}
