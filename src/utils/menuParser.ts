@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import { MenuData, DayMenu, Meal } from "../types/menuTypes";
+import { MenuData, DayMenu, Meal, DAY_MAPPING, MEAL_MAPPING } from "../types/menuTypes";
 
 /**
  * KNUE 식단 HTML을 파싱하여 구조화된 데이터로 변환
@@ -7,71 +7,184 @@ import { MenuData, DayMenu, Meal } from "../types/menuTypes";
  * @returns 파싱된 메뉴 데이터
  */
 export function parseMenuHtml(html: string): MenuData {
-	const $ = cheerio.load(html);
+    const $ = cheerio.load(html);
+    
+    // 메뉴 데이터 초기화
+    const menuData: MenuData = {
+        staff: initializeDayMenu(),
+        dormitory: initializeDayMenu(),
+        lastUpdated: new Date().toISOString()
+    };
 
-	// 메뉴 데이터 초기화
-	const menuData: MenuData = {
-		교직원식당: initializeDayMenu(),
-		기숙사식당: initializeDayMenu(),
-		lastUpdated: new Date().toISOString(),
-	};
+    // 요일별 ID 매핑
+    const dayIds: Record<string, string> = {
+        "mon_list": "월요일",
+        "tue_list": "화요일",
+        "wed_list": "수요일",
+        "thu_list": "목요일",
+        "fri_list": "금요일",
+        "sat_list": "토요일",
+        "sun_list": "일요일"
+    };
 
-	// 요일별 ID 매핑
-	const dayIds: Record<string, string> = {
-		mon_list: "월요일",
-		tue_list: "화요일",
-		wed_list: "수요일",
-		thu_list: "목요일",
-		fri_list: "금요일",
-		sat_list: "토요일",
-		sun_list: "일요일",
-	};
+    // 영어 요일 키 매핑 (역방향)
+    const koreanToEnglishDay: Record<string, string> = {};
+    for (const [english, korean] of Object.entries(DAY_MAPPING)) {
+        koreanToEnglishDay[korean] = english;
+    }
 
-	// 각 요일 컨텐츠 처리
-	Object.keys(dayIds).forEach((dayId) => {
-		const day = dayIds[dayId];
-		const dayContent = $(`#${dayId}`);
+    // 각 요일 컨텐츠 처리
+    Object.keys(dayIds).forEach(dayId => {
+        const koreanDay = dayIds[dayId];
+        const englishDay = koreanToEnglishDay[koreanDay];
+        const dayContent = $(`#${dayId}`);
+        
+        // 교직원 식당 데이터 처리
+        const staffTableSection = dayContent.find("h3").filter(function() {
+            return $(this).text().includes("교직원");
+        }).next("table");
+        
+        if (staffTableSection.length) {
+            staffTableSection.find("tr").each(function() {
+                const koreanMealType = $(this).find("th").text().trim();
+                const mealContent = $(this).find("td").text().trim();
+                
+                // 한글 식사 타입을 영어로 변환
+                let englishMealType = "";
+                for (const [english, korean] of Object.entries(MEAL_MAPPING)) {
+                    if (korean === koreanMealType) {
+                        englishMealType = english;
+                        break;
+                    }
+                }
+                
+                if (englishMealType && ["breakfast", "lunch", "dinner"].includes(englishMealType)) {
+                    // 타임스탬프 제거 및 띄어쓰기 기준 구분자 처리
+                    const formattedContent = formatStaffMenuContent(mealContent);
+                    menuData.staff[englishDay][englishMealType as keyof Meal] = formattedContent;
+                }
+            });
+        }
+        
+        // 기숙사 식당 데이터 처리 (기존 방식 유지)
+        const dormTableSection = dayContent.find("h3").filter(function() {
+            return $(this).text().includes("기숙사");
+        }).next("table");
+        
+        if (dormTableSection.length) {
+            dormTableSection.find("tr").each(function() {
+                const koreanMealType = $(this).find("th").text().trim();
+                const mealContent = $(this).find("td").text().trim();
+                
+                // 한글 식사 타입을 영어로 변환
+                let englishMealType = "";
+                for (const [english, korean] of Object.entries(MEAL_MAPPING)) {
+                    if (korean === koreanMealType) {
+                        englishMealType = english;
+                        break;
+                    }
+                }
+                
+                if (englishMealType && ["breakfast", "lunch", "dinner"].includes(englishMealType)) {
+                    // 메뉴 내용에서 특수 문자 처리 및 쉼표로 구분자 통일
+                    const formattedContent = formatMenuContent(mealContent);
+                    menuData.dormitory[englishDay][englishMealType as keyof Meal] = formattedContent;
+                }
+            });
+        }
+    });
 
-		// 교직원 식당 데이터 처리
-		const staffTableSection = dayContent
-			.find("h3")
-			.filter(function () {
-				return $(this).text().includes("교직원");
-			})
-			.next("table");
+    return menuData;
+}
 
-		if (staffTableSection.length) {
-			staffTableSection.find("tr").each(function () {
-				const mealType = $(this).find("th").text().trim();
-				const mealContent = $(this).find("td").text().trim();
+/**
+ * 교직원 식당 메뉴 내용에서 타임스탬프 제거 및 띄어쓰기 기준 구분자 처리
+ * @param content 원본 메뉴 내용
+ * @returns 타임스탬프가 제거되고 띄어쓰기 기준으로 구분자 처리된 메뉴 내용
+ */
+function formatStaffMenuContent(content: string): string {
+    if (!content) return "";
 
-				if (mealType && ["아침", "점심", "저녁"].includes(mealType)) {
-					menuData.교직원식당[day][mealType as keyof Meal] = mealContent;
-				}
-			});
-		}
+    // 타임스탬프 패턴 제거 (예: [11:00~14:00] [느티헌])
+    let formatted = content.replace(/\[\d{1,2}:\d{2}~\d{1,2}:\d{2}\]\s*\[[^\]]+\]/g, "");
+    
+    // 셀프코너 등의 추가 정보도 제거
+    formatted = formatted.replace(/\[셀프코너\]/g, "");
+    formatted = formatted.replace(/\[\d{1,2}:\d{2}~\d{1,2}:\d{2}\]/g, "");
+    formatted = formatted.replace(/\[[^\]]+추가메뉴\]/g, "");
+    
+    // 모든 괄호류를 제거
+    formatted = formatted.replace(/\[[^\]]*\]/g, "");
+    
+    // 원래 구분자로 사용되던 것들을 공백으로 변경
+    formatted = formatted
+        .replace(/&amp;/g, " ")
+        .replace(/&/g, " ")
+        .replace(/\//g, " ")
+        .replace(/\+/g, " ")
+        .replace(/•/g, " ")
+        .replace(/·/g, " ")
+        .replace(/\|/g, " ")
+        .replace(/\n/g, " ");
+    
+    // 연속된 공백을 하나로 정리
+    formatted = formatted.replace(/\s+/g, " ").trim();
+    
+    // 각 메뉴 항목을 띄어쓰기로 분리하고 배열로 전환
+    const menuItems = formatted.split(" ")
+        .map(item => item.trim())
+        .filter(item => item.length > 0);
+    
+    // 쉼표로 합쳐서 반환 (띄어쓰기 없음)
+    return menuItems.join(",");
+}
 
-		// 기숙사 식당 데이터 처리
-		const dormTableSection = dayContent
-			.find("h3")
-			.filter(function () {
-				return $(this).text().includes("기숙사");
-			})
-			.next("table");
+/**
+ * 메뉴 내용의 구분자를 쉼표로 통일하는 함수
+ * @param content 원본 메뉴 내용
+ * @returns 구분자가 쉼표로 통일된 메뉴 내용
+ */
+function formatMenuContent(content: string): string {
+    if (!content) return "";
 
-		if (dormTableSection.length) {
-			dormTableSection.find("tr").each(function () {
-				const mealType = $(this).find("th").text().trim();
-				const mealContent = $(this).find("td").text().trim();
+    // 여러 구분자들을 쉼표로 통일
+    let formatted = content
+        // &amp; 및 & 기호를 쉼표로 변경
+        .replace(/&amp;/g, ",")
+        .replace(/\s*&\s*/g, ",")
+        // 콜론 뒤에 공백이 있으면 유지, 없으면 공백 추가
+        .replace(/:\s*/g, ":")
+        // 줄바꿈 문자를 쉼표로 변경
+        .replace(/\s*\n\s*/g, ",")
+        // 마침표를 쉼표로 변경
+        .replace(/\s*\.\s*/g, ",");
 
-				if (mealType && ["아침", "점심", "저녁"].includes(mealType)) {
-					menuData.기숙사식당[day][mealType as keyof Meal] = mealContent;
-				}
-			});
-		}
-	});
+    // 모든 구분자를 쉼표로 변경
+    const separators = [
+        /\s*\/\s*/g,  // '/'
+        /\s*\+\s*/g,  // '+'
+        /\s*•\s*/g,   // '•'
+        /\s*·\s*/g,   // '·'
+        /\s*[\|│]\s*/g  // '|' 또는 '│'
+    ];
 
-	return menuData;
+    for (const separator of separators) {
+        formatted = formatted.replace(separator, ",");
+    }
+
+    // 연속된 쉼표 제거
+    formatted = formatted.replace(/,\s*,/g, ",");
+    
+    // 앞뒤 공백 제거 및 첫 글자가 쉼표인 경우 제거
+    formatted = formatted.trim().replace(/^,\s*/, "");
+    
+    // 마지막 글자가 쉼표인 경우 제거
+    formatted = formatted.replace(/,\s*$/, "");
+    
+    // 모든 쉼표 주변 공백 제거
+    formatted = formatted.replace(/\s*,\s*/g, ",");
+    
+    return formatted;
 }
 
 /**
@@ -79,13 +192,13 @@ export function parseMenuHtml(html: string): MenuData {
  * @returns 초기화된 요일별 메뉴 데이터
  */
 function initializeDayMenu(): DayMenu {
-	return {
-		월요일: { 아침: "", 점심: "", 저녁: "" },
-		화요일: { 아침: "", 점심: "", 저녁: "" },
-		수요일: { 아침: "", 점심: "", 저녁: "" },
-		목요일: { 아침: "", 점심: "", 저녁: "" },
-		금요일: { 아침: "", 점심: "", 저녁: "" },
-		토요일: { 아침: "", 점심: "", 저녁: "" },
-		일요일: { 아침: "", 점심: "", 저녁: "" },
-	};
+    return {
+        monday: { breakfast: "", lunch: "", dinner: "" },
+        tuesday: { breakfast: "", lunch: "", dinner: "" },
+        wednesday: { breakfast: "", lunch: "", dinner: "" },
+        thursday: { breakfast: "", lunch: "", dinner: "" },
+        friday: { breakfast: "", lunch: "", dinner: "" },
+        saturday: { breakfast: "", lunch: "", dinner: "" },
+        sunday: { breakfast: "", lunch: "", dinner: "" }
+    };
 }

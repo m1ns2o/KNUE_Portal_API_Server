@@ -12,6 +12,7 @@ import { scheduleJob } from "node-schedule";
 import { LoginService, LoginRequest } from "./src/services/loginService";
 import { MenuService } from "./src/services/menuService";
 import { RedisService } from "./src/services/redisService";
+import { DAY_MAPPING, CAFETERIA_MAPPING } from "./src/types/menuTypes";
 
 // Fastify 초기화 (로거 활성화)
 const server: FastifyInstance = Fastify({
@@ -82,7 +83,7 @@ server.post(
 	}
 );
 
-// 메뉴 관련 라우트
+// 메뉴 관련 라우트 (영어 파라미터)
 
 // 모든 메뉴 데이터 조회
 server.get("/menu", async (_request: FastifyRequest, reply: FastifyReply) => {
@@ -103,7 +104,7 @@ server.get("/menu", async (_request: FastifyRequest, reply: FastifyReply) => {
 	}
 });
 
-// 특정 식당 메뉴 조회
+// 특정 식당 메뉴 조회 (영어 파라미터)
 server.get<{ Params: { type: string } }>(
 	"/menu/cafeteria/:type",
 	async (request, reply) => {
@@ -111,11 +112,10 @@ server.get<{ Params: { type: string } }>(
 			const { type } = request.params;
 
 			// 식당 타입 유효성 검사
-			if (!["교직원식당", "기숙사식당"].includes(type)) {
+			if (!["staff", "dormitory"].includes(type)) {
 				return reply.code(400).send({
 					error: "Bad Request",
-					message:
-						"유효하지 않은 식당 타입입니다. '교직원식당' 또는 '기숙사식당'이어야 합니다.",
+					message: "Invalid cafeteria type. Must be 'staff' or 'dormitory'",
 				});
 			}
 
@@ -136,29 +136,27 @@ server.get<{ Params: { type: string } }>(
 	}
 );
 
-// 특정 요일 메뉴 조회
+// 특정 요일 메뉴 조회 (영어 파라미터)
 server.get<{ Params: { day: string } }>(
 	"/menu/day/:day",
 	async (request, reply) => {
 		try {
 			const { day } = request.params;
 			const validDays = [
-				"월요일",
-				"화요일",
-				"수요일",
-				"목요일",
-				"금요일",
-				"토요일",
-				"일요일",
+				"monday",
+				"tuesday",
+				"wednesday",
+				"thursday",
+				"friday",
+				"saturday",
+				"sunday",
 			];
 
 			// 요일 유효성 검사
 			if (!validDays.includes(day)) {
 				return reply.code(400).send({
 					error: "Bad Request",
-					message: `유효하지 않은 요일입니다. 다음 중 하나여야 합니다: ${validDays.join(
-						", "
-					)}`,
+					message: `Invalid day. Must be one of: ${validDays.join(", ")}`,
 				});
 			}
 
@@ -187,7 +185,7 @@ server.post(
 			// 프로덕션 환경에서는 인증 로직 추가 필요
 			const refreshedData = await menuService.refreshMenuData();
 			return reply.code(200).send({
-				message: "메뉴 데이터가 성공적으로 새로고침되었습니다",
+				message: "Menu data refreshed successfully",
 				data: refreshedData,
 			});
 		} catch (error: unknown) {
@@ -208,11 +206,11 @@ server.post(
 // 매주 월요일 00:05에 메뉴 데이터 업데이트 스케줄링
 scheduleJob("5 0 * * 1", async () => {
 	try {
-		server.log.info("스케줄된 메뉴 데이터 업데이트 실행 중");
+		server.log.info("Running scheduled menu data update");
 		await menuService.refreshMenuData();
-		server.log.info("주간 메뉴 데이터 업데이트가 성공적으로 완료되었습니다");
+		server.log.info("Weekly menu data update completed successfully");
 	} catch (error) {
-		server.log.error("스케줄된 메뉴 업데이트 중 오류 발생:", error);
+		server.log.error("Error during scheduled menu update:", error);
 	}
 });
 
@@ -224,11 +222,11 @@ const start = async () => {
 
 		// 서버 시작 시 초기 메뉴 데이터 가져오기
 		await menuService.refreshMenuData();
-		server.log.info("초기 메뉴 데이터 가져오기 완료");
+		server.log.info("Initial menu data fetch completed");
 
 		// Fastify 서버 시작
 		await server.listen({ port: 3000, host: "0.0.0.0" });
-		console.log("서버가 http://localhost:3000 에서 실행 중입니다");
+		console.log("Server is running on http://localhost:3000");
 	} catch (err) {
 		server.log.error(err);
 		process.exit(1);
