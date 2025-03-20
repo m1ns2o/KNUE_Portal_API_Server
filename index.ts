@@ -177,6 +177,17 @@ server.get<{ Params: { day: string } }>(
 	}
 );
 
+// 기존 Fastify 서버에 라우트 추가
+server.get('/menu/day/today', async (request, reply) => {
+  try {
+    const todayMenu = await menuService.getTodayMenu();
+    return todayMenu;
+  } catch (error) {
+    request.log.error('Error fetching today\'s menu:', error);
+    reply.status(500).send({ error: 'Failed to fetch today\'s menu' });
+  }
+});
+
 // 메뉴 데이터 새로고침 (관리자용)
 server.post(
 	"/admin/menu/refresh",
