@@ -36,6 +36,12 @@ export function parseMenuHtml(html: string): MenuData {
     // 각 요일 컨텐츠 처리
     Object.keys(dayIds).forEach(dayId => {
         const koreanDay = dayIds[dayId];
+        
+        // 한글 요일을 영어 요일로 변환 (타입 체크 추가)
+        if (!(koreanDay in koreanToEnglishDay)) {
+            return; // 알 수 없는 요일은 건너뜀
+        }
+        
         const englishDay = koreanToEnglishDay[koreanDay];
         const dayContent = $(`#${dayId}`);
         
@@ -61,7 +67,11 @@ export function parseMenuHtml(html: string): MenuData {
                 if (englishMealType && ["breakfast", "lunch", "dinner"].includes(englishMealType)) {
                     // 타임스탬프 제거 및 띄어쓰기 기준 구분자 처리
                     const formattedContent = formatStaffMenuContent(mealContent);
-                    menuData.staff[englishDay][englishMealType as keyof Meal] = formattedContent;
+                    
+                    // 타입 안전성 보장
+                    if (menuData.staff[englishDay as keyof DayMenu]) {
+                        (menuData.staff[englishDay as keyof DayMenu] as Meal)[englishMealType as keyof Meal] = formattedContent;
+                    }
                 }
             });
         }
@@ -88,7 +98,11 @@ export function parseMenuHtml(html: string): MenuData {
                 if (englishMealType && ["breakfast", "lunch", "dinner"].includes(englishMealType)) {
                     // 메뉴 내용에서 특수 문자 처리 및 쉼표로 구분자 통일
                     const formattedContent = formatMenuContent(mealContent);
-                    menuData.dormitory[englishDay][englishMealType as keyof Meal] = formattedContent;
+                    
+                    // 타입 안전성 보장
+                    if (menuData.dormitory[englishDay as keyof DayMenu]) {
+                        (menuData.dormitory[englishDay as keyof DayMenu] as Meal)[englishMealType as keyof Meal] = formattedContent;
+                    }
                 }
             });
         }
