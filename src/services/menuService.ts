@@ -7,11 +7,12 @@ import {
 	CAFETERIA_MAPPING,
 	DayMenu,
 	CafeteriaMenu,
+	Meal,
 } from "../types/menuTypes";
 
 // 메뉴 데이터 Redis 키 및 TTL
 const MENU_DATA_KEY = "knue:menu:weekly";
-const MENU_DATA_TTL = 60 * 60 * 24 * 7; // 7일(초 단위)
+const MENU_DATA_TTL = 60 * 60 * 24 * 8; // 7일(초 단위)
 
 /**
  * KNUE 메뉴 데이터를 관리하는 서비스
@@ -96,9 +97,22 @@ export class MenuService {
 	 */
 	public async getCafeteriaMenu(
 		cafeteriaType: string
-	): Promise<CafeteriaMenu | null> {
-		const menuData = await this.getMenuData();
-		return menuData[cafeteriaType as keyof MenuData] || null;
+	): Promise<DayMenu | null> {
+		try {
+			const menuData = await this.getMenuData();
+			
+			// 타입 안전성을 위해 문자열 리터럴로 처리
+			if (cafeteriaType === 'staff') {
+				return menuData.staff;
+			}
+			if (cafeteriaType === 'dormitory') {
+				return menuData.dormitory;
+			}
+			return null;
+		} catch (error) {
+			console.error("getCafeteriaMenu 오류:", error);
+			throw error;
+		}
 	}
 
 	/**
@@ -107,28 +121,29 @@ export class MenuService {
 	 * @returns 해당 요일의 메뉴 데이터
 	 */
 	public async getDayMenu(day: string): Promise<{
-		staff: DayMenu | null;
-		dormitory: DayMenu | null;
+		staff: Meal | null;
+		dormitory: Meal | null;
 	}> {
-		const menuData = await this.getMenuData();
-
-		return {
-			staff: menuData.staff?.[day] || null,
-			dormitory: menuData.dormitory?.[day] || null,
-		};
+		try {
+			const menuData = await this.getMenuData();
+			
+			return {
+				staff: menuData.staff?.[day] || null,
+				dormitory: menuData.dormitory?.[day] || null,
+			};
+		} catch (error) {
+			console.error("getDayMenu 오류:", error);
+			throw error;
+		}
 	}
 
 	/**
 	 * 오늘의 메뉴 데이터를 가져옴
 	 * @returns 오늘 날짜의 메뉴 데이터
 	 */
-	/**
-	 * 오늘의 메뉴 데이터를 가져옴
-	 * @returns 오늘 날짜의 메뉴 데이터
-	 */
 	public async getTodayMenu(): Promise<{
-		staff: DayMenu | null;
-		dormitory: DayMenu | null;
+		staff: Meal | null;
+		dormitory: Meal | null;
 	}> {
 		try {
 			const today = new Date();
@@ -168,9 +183,12 @@ export class MenuService {
 
 			console.log("오늘의 요일 키:", todayKey);
 
-			// 해당 요일의 메뉴 가져오기
-			const menu = await this.getDayMenu(todayKey);
-			return menu;
+			const menuData = await this.getMenuData();
+			
+			return {
+				staff: menuData.staff?.[todayKey] || null,
+				dormitory: menuData.dormitory?.[todayKey] || null
+			};
 		} catch (error) {
 			console.error("getTodayMenu 오류:", error);
 			throw error;

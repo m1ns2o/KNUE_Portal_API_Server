@@ -15,6 +15,13 @@ export interface DayMenu {
 }
 
 /**
+ * 식당별 메뉴 정보 인터페이스
+ */
+export interface CafeteriaMenu {
+	[day: string]: DayMenu;
+}
+
+/**
  * 메뉴 데이터 인터페이스
  */
 export interface MenuData {
