@@ -3,16 +3,14 @@ import { parseMenuHtml } from "../utils/menuParser";
 import { RedisService } from "./redisService";
 import {
 	MenuData,
-	DAY_MAPPING,
-	CAFETERIA_MAPPING,
 	DayMenu,
-	CafeteriaMenu,
 	Meal,
 } from "../types/menuTypes";
 
 // 메뉴 데이터 Redis 키 및 TTL
 const MENU_DATA_KEY = "knue:menu:weekly";
-const MENU_DATA_TTL = 60 * 60 * 24 * 8; // 7일(초 단위)
+// const MENU_DATA_TTL = 60 * 60 * 24 * 8; // 7일(초 단위)
+const MAX_RETRIES = 600; // 최대 10시간 재시도 (1분마다)
 
 /**
  * KNUE 메뉴 데이터를 관리하는 서비스
@@ -21,6 +19,8 @@ export class MenuService {
 	private redisService: RedisService;
 	private menuUrl: string =
 		"https://pot.knue.ac.kr/enview/knue/mobileMenu.html"; // 실제 KNUE 메뉴 URL로 변경 필요
+	private retryTimeout: NodeJS.Timeout | null = null;
+	private retryCount: number = 0;
 
 	/**
 	 * MenuService 생성자
@@ -45,6 +45,58 @@ export class MenuService {
 	}
 
 	/**
+	 * 메뉴 데이터의 비어있는지 확인
+	 * 정상적으로 운영되는 요일/식당에서 아침, 점심, 저녁 모두 비어있는 경우 true 반환
+	 */
+	private isMenuEmpty(menuData: MenuData): boolean {
+		// 평일(월-금) 검사 - 교직원 식당
+		const isStaffEmptyOnWeekdays = (): boolean => {
+			if (!menuData.staff) return true;
+			
+			const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+			return weekdays.every(day => {
+				const meal = menuData.staff[day];
+				// 아침, 점심, 저녁이 모두 비어있는지 확인
+				return !meal || 
+					(!meal.lunch || meal.lunch.length === 0) && 
+					(!meal.dinner || meal.dinner.length === 0);
+			});
+		};
+		
+		// 전체 요일(월-일) 검사 - 기숙사 식당
+		const isDormitoryEmpty = (): boolean => {
+			if (!menuData.dormitory) return true;
+			
+			const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+			return daysOfWeek.every(day => {
+				const meal = menuData.dormitory[day];
+				// 아침, 점심, 저녁이 모두 비어있는지 확인
+				return !meal || 
+					(!meal.breakfast || meal.breakfast.length === 0) && 
+					(!meal.lunch || meal.lunch.length === 0) && 
+					(!meal.dinner || meal.dinner.length === 0);
+			});
+		};
+		
+		// 교직원 식당(평일)과 기숙사 식당(전체) 모두 비어있으면 true 반환
+		return isStaffEmptyOnWeekdays() && isDormitoryEmpty();
+	}
+
+	/**
+	 * 재시도 횟수 증가
+	 */
+	private incrementRetryCount(): number {
+		return ++this.retryCount;
+	}
+
+	/**
+	 * 재시도 횟수 초기화
+	 */
+	private resetRetryCount(): void {
+		this.retryCount = 0;
+	}
+
+	/**
 	 * 메뉴 데이터를 가져와 파싱하고 Redis에 저장
 	 * @returns 처리된 메뉴 데이터
 	 */
@@ -58,7 +110,34 @@ export class MenuService {
 
 			// 타임스탬프 추가
 			menuData.lastUpdated = new Date().toISOString();
-
+			
+			// 메뉴가 비어있는지 확인
+			if (this.isMenuEmpty(menuData)) {
+				const retryCount = this.incrementRetryCount();
+				console.log(`유효한 메뉴 데이터가 비어있습니다. 재시도 #${retryCount}`);
+				
+				if (retryCount < MAX_RETRIES) {
+					// 1분 후 다시 시도
+					if (this.retryTimeout) clearTimeout(this.retryTimeout);
+					this.retryTimeout = setTimeout(() => {
+						console.log("빈 메뉴 재시도 중...");
+						this.fetchAndStoreMenuData().catch(err => {
+							console.error("빈 메뉴 재시도 중 오류:", err);
+						});
+					}, 60 * 1000); // 1분
+				} else {
+					console.warn(`최대 재시도 횟수(${MAX_RETRIES})에 도달했습니다. 빈 메뉴 데이터를 사용합니다.`);
+					this.resetRetryCount();
+				}
+			} else {
+				// 메뉴가 정상적으로 채워져 있으면 재시도 카운터 초기화
+				this.resetRetryCount();
+				if (this.retryTimeout) {
+					clearTimeout(this.retryTimeout);
+					this.retryTimeout = null;
+				}
+			}
+			
 			// Redis에 저장 (TTL 설정은 선택 사항)
 			await this.redisService.set(MENU_DATA_KEY, JSON.stringify(menuData));
 
@@ -100,12 +179,12 @@ export class MenuService {
 	): Promise<DayMenu | null> {
 		try {
 			const menuData = await this.getMenuData();
-			
+
 			// 타입 안전성을 위해 문자열 리터럴로 처리
-			if (cafeteriaType === 'staff') {
+			if (cafeteriaType === "staff") {
 				return menuData.staff;
 			}
-			if (cafeteriaType === 'dormitory') {
+			if (cafeteriaType === "dormitory") {
 				return menuData.dormitory;
 			}
 			return null;
@@ -126,7 +205,7 @@ export class MenuService {
 	}> {
 		try {
 			const menuData = await this.getMenuData();
-			
+
 			return {
 				staff: menuData.staff?.[day] || null,
 				dormitory: menuData.dormitory?.[day] || null,
@@ -184,10 +263,10 @@ export class MenuService {
 			console.log("오늘의 요일 키:", todayKey);
 
 			const menuData = await this.getMenuData();
-			
+
 			return {
 				staff: menuData.staff?.[todayKey] || null,
-				dormitory: menuData.dormitory?.[todayKey] || null
+				dormitory: menuData.dormitory?.[todayKey] || null,
 			};
 		} catch (error) {
 			console.error("getTodayMenu 오류:", error);
@@ -201,5 +280,15 @@ export class MenuService {
 	 */
 	public async refreshMenuData(): Promise<MenuData> {
 		return await this.fetchAndStoreMenuData();
+	}
+	
+	/**
+	 * 서비스 정리 (타이머 정리)
+	 */
+	public cleanup(): void {
+		if (this.retryTimeout) {
+			clearTimeout(this.retryTimeout);
+			this.retryTimeout = null;
+		}
 	}
 }

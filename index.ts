@@ -60,7 +60,7 @@ server.post(
 					reply.cookie(cookie.name, cookie.value, {
 						path: "/",
 						httpOnly: false, // React Native에서 접근할 수 있도록 httpOnly 비활성화
-						secure: false, // 개발 환경에서는 secure 비활성화 (http 사용 시)
+						secure: true, // 개발 환경에서는 secure 비활성화 (http 사용 시)
 						sameSite: "none",
 					});
 				});
@@ -215,14 +215,14 @@ server.post(
 );
 
 // 매주 월요일 00:05에 메뉴 데이터 업데이트 스케줄링
-scheduleJob("5 0 * * 1", async () => {
-	try {
-		server.log.info("Running scheduled menu data update");
-		await menuService.refreshMenuData();
-		server.log.info("Weekly menu data update completed successfully");
-	} catch (error) {
-		server.log.error("Error during scheduled menu update:", error);
-	}
+scheduleJob("0 0 * * 1", async () => {
+  try {
+    server.log.info("Running scheduled menu data update");
+    await menuService.refreshMenuData();
+    server.log.info("Weekly menu data update completed successfully");
+  } catch (error) {
+    server.log.error("Error during scheduled menu update:", error);
+  }
 });
 
 // 서버 시작
