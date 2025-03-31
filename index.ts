@@ -38,6 +38,12 @@ const redisService = new RedisService();
 // 메뉴 서비스 초기화
 const menuService = new MenuService(redisService);
 
+server.get('/', async () => {
+  return { version: '1.0.0' } // 또는 HTML 페이지 렌더링
+});
+
+
+
 // 로그인 라우트 생성
 server.post(
 	"/login",
