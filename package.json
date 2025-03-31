@@ -2,7 +2,7 @@
   "name": "knue-menu-api",
   "version": "1.0.0",
   "description": "KNUE 식단 조회 API 서버",
-  "main": "dist/server.js",
+  "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
