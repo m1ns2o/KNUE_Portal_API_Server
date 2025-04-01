@@ -1,11 +1,7 @@
 import axios from "axios";
 import { parseMenuHtml } from "../utils/menuParser";
 import { RedisService } from "./redisService";
-import {
-	MenuData,
-	DayMenu,
-	Meal,
-} from "../types/menuTypes";
+import { MenuData, DayMenu, Meal } from "../types/menuTypes";
 
 // 메뉴 데이터 Redis 키 및 TTL
 const MENU_DATA_KEY = "knue:menu:weekly";
@@ -52,36 +48,52 @@ export class MenuService {
 		// 평일(월-금) 검사 - 교직원 식당
 		const isStaffEmptyOnWeekdays = (): boolean => {
 			if (!menuData.staff) return true;
-			
-			const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-			return weekdays.every(day => {
+
+			const weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+			return weekdays.some((day) => {
 				const meal = menuData.staff[day];
-				// 아침, 점심, 저녁이 모두 비어있는지 확인
-				return !meal || 
-					(!meal.lunch || meal.lunch.length === 0) && 
-					(!meal.dinner || meal.dinner.length === 0);
+				// 아침, 점심, 저녁 중 하나라도 비어있는지 확인
+				return (
+					!meal ||
+					!meal.lunch ||
+					meal.lunch.length === 0 ||
+					!meal.dinner ||
+					meal.dinner.length === 0
+				);
 			});
 		};
-		
+
 		// 전체 요일(월-일) 검사 - 기숙사 식당
 		const isDormitoryEmpty = (): boolean => {
 			if (!menuData.dormitory) return true;
-			
-			const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-			return daysOfWeek.every(day => {
+
+			const daysOfWeek = [
+				"monday",
+				"tuesday",
+				"wednesday",
+				"thursday",
+				"friday",
+				"saturday",
+				"sunday",
+			];
+			return daysOfWeek.some((day) => {
 				const meal = menuData.dormitory[day];
-				// 아침, 점심, 저녁이 모두 비어있는지 확인
-				return !meal || 
-					(!meal.breakfast || meal.breakfast.length === 0) && 
-					(!meal.lunch || meal.lunch.length === 0) && 
-					(!meal.dinner || meal.dinner.length === 0);
+				// 아침, 점심, 저녁 중 하나라도 비어있는지 확인
+				return (
+					!meal ||
+					!meal.breakfast ||
+					meal.breakfast.length === 0 ||
+					!meal.lunch ||
+					meal.lunch.length === 0 ||
+					!meal.dinner ||
+					meal.dinner.length === 0
+				);
 			});
 		};
-		
-		// 교직원 식당(평일)과 기숙사 식당(전체) 모두 비어있으면 true 반환
-		return isStaffEmptyOnWeekdays() && isDormitoryEmpty();
-	}
 
+		// 교직원 식당(평일)이나 기숙사 식당(전체) 중 하나라도 비어있으면 true 반환
+		return isStaffEmptyOnWeekdays() || isDormitoryEmpty();
+	}
 	/**
 	 * 재시도 횟수 증가
 	 */
@@ -110,23 +122,25 @@ export class MenuService {
 
 			// 타임스탬프 추가
 			menuData.lastUpdated = new Date().toISOString();
-			
+
 			// 메뉴가 비어있는지 확인
 			if (this.isMenuEmpty(menuData)) {
 				const retryCount = this.incrementRetryCount();
 				console.log(`유효한 메뉴 데이터가 비어있습니다. 재시도 #${retryCount}`);
-				
+
 				if (retryCount < MAX_RETRIES) {
 					// 1분 후 다시 시도
 					if (this.retryTimeout) clearTimeout(this.retryTimeout);
 					this.retryTimeout = setTimeout(() => {
 						console.log("빈 메뉴 재시도 중...");
-						this.fetchAndStoreMenuData().catch(err => {
+						this.fetchAndStoreMenuData().catch((err) => {
 							console.error("빈 메뉴 재시도 중 오류:", err);
 						});
 					}, 60 * 1000); // 1분
 				} else {
-					console.warn(`최대 재시도 횟수(${MAX_RETRIES})에 도달했습니다. 빈 메뉴 데이터를 사용합니다.`);
+					console.warn(
+						`최대 재시도 횟수(${MAX_RETRIES})에 도달했습니다. 빈 메뉴 데이터를 사용합니다.`
+					);
 					this.resetRetryCount();
 				}
 			} else {
@@ -137,7 +151,7 @@ export class MenuService {
 					this.retryTimeout = null;
 				}
 			}
-			
+
 			// Redis에 저장 (TTL 설정은 선택 사항)
 			await this.redisService.set(MENU_DATA_KEY, JSON.stringify(menuData));
 
@@ -281,7 +295,7 @@ export class MenuService {
 	public async refreshMenuData(): Promise<MenuData> {
 		return await this.fetchAndStoreMenuData();
 	}
-	
+
 	/**
 	 * 서비스 정리 (타이머 정리)
 	 */
