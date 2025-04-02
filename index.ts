@@ -18,8 +18,8 @@ import { registerAdminRoutes } from "./src/routes/adminRoutes";
 // Cloudflare 인증서 경로 설정 및 로드 확인 로깅 추가
 const httpsOptions = (() => {
 	try {
-		const keyPath = path.join(__dirname, "ssl", "cloudflare.key");
-		const certPath = path.join(__dirname, "ssl", "cloudflare.pem");
+		const keyPath = "/etc/letsencrypt/live/m1ns2o.com/privkey.pem";
+		const certPath = "/etc/letsencrypt/live/m1ns2o.com/fullchain.pem";
 
 		if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
 			throw new Error(
