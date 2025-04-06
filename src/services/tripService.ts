@@ -149,7 +149,7 @@ export class TripService {
    * @param token JWT 토큰
    * @returns 외박 목록과 원본 HTML
    */
-  public static async fetchTripList(token: string): Promise<{ tripList: TripItem[]; htmlData: string }> {
+  public static async fetchTripList(token: string): Promise<{ tripList: TripItem[]; }> {
     try {
       // Redis에서 쿠키 가져오기
       const cookies = await this.getCookiesFromRedis(token);
@@ -172,7 +172,7 @@ export class TripService {
 
       return {
         tripList,
-        htmlData,
+        // htmlData,
       };
     } catch (error) {
       console.error("외박 목록 불러오기 실패:", error);

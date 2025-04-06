@@ -57,12 +57,12 @@ export function registerTripRoutes(server: FastifyInstance, redisService: RedisS
         }
 
         // 토큰을 사용하여 외박 목록 불러오기
-        const { tripList, htmlData } = await TripService.fetchTripList(token);
+        const { tripList } = await TripService.fetchTripList(token);
 
         return reply.code(200).send({
           success: true,
           tripList,
-          htmlData,
+          // htmlData,
         });
       } catch (error: unknown) {
         request.log.error(error);

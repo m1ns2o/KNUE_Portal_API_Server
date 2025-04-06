@@ -55,7 +55,7 @@ export interface RefreshTokenInfo {
 export class AuthService {
     private static readonly LOGIN_URL = "https://mpot.knue.ac.kr/common/login";
     private static readonly ACCESS_TOKEN_EXPIRY = 1 * 60; // 15분 (초 단위)
-    private static readonly REFRESH_TOKEN_EXPIRY = 30 * 24 * 60 * 60; // 7일 (초 단위)
+    private static readonly REFRESH_TOKEN_EXPIRY = 30 * 24 * 60 * 60; // 30일 (초 단위)
     private static readonly SECRET_KEY = process.env.JWT_SECRET_KEY || "knue-app-secret-key";
 
     private redisService: RedisService;
