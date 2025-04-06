@@ -20,14 +20,13 @@ export function registerTripRoutes(server: FastifyInstance, redisService: RedisS
         }
 
         // 토큰을 사용하여 외박 신청 페이지 불러오기
-        const { enteranceInfoSeq, hakbeon, htmlData } = await TripService.fetchTripRequestPage(token);
+        const { enteranceInfoSeq, hakbeon} = await TripService.fetchTripRequestPage(token);
         console.log("enteranceInfoSeq:", enteranceInfoSeq);
         
         return reply.code(200).send({
           success: true,
           enteranceInfoSeq,
           hakbeon,
-          htmlData,
         });
       } catch (error: unknown) {
         request.log.error(error);
@@ -96,14 +95,14 @@ export function registerTripRoutes(server: FastifyInstance, redisService: RedisS
         const params = request.body;
 
         // 토큰을 사용하여 외박 신청 요청
-        const { success, htmlData } = await TripService.requestTrip(token, params);
+        const success = await TripService.requestTrip(token, params);
 
         return reply.code(200).send({
           success,
           message: success
             ? "외박 신청이 성공적으로 처리되었습니다."
             : "외박 신청이 처리되었으나, 확인할 수 없습니다. 외박 목록을 확인해주세요.",
-          htmlData,
+
         });
       } catch (error: unknown) {
         request.log.error(error);

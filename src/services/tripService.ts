@@ -109,7 +109,7 @@ export class TripService {
    * @param token JWT 토큰
    * @returns enteranceInfoSeq와 HTML 응답
    */
-  public static async fetchTripRequestPage(token: string): Promise<{ enteranceInfoSeq: string; hakbeon: string, htmlData: string }> {
+  public static async fetchTripRequestPage(token: string): Promise<{ enteranceInfoSeq: string; hakbeon: string}> {
     try {
       // Redis에서 쿠키 가져오기
       const cookies = await this.getCookiesFromRedis(token);
@@ -136,7 +136,7 @@ export class TripService {
       return {
         enteranceInfoSeq: enteranceInfoSeq || "",
         hakbeon: hakbeon || "",
-        htmlData,
+        // htmlData,
       };
     } catch (error) {
       console.error("외박 신청 페이지 불러오기 실패:", error);
@@ -186,7 +186,7 @@ export class TripService {
    * @param params 외박 신청 파라미터
    * @returns 응답 HTML과 처리 결과
    */
-  public static async requestTrip(token: string, params: TripRequestParams): Promise<{ success: boolean; htmlData: string }> {
+  public static async requestTrip(token: string, params: TripRequestParams): Promise<{ success: boolean; }> {
     try {
       // Redis에서 쿠키 가져오기
       const cookies = await this.getCookiesFromRedis(token);
@@ -223,7 +223,6 @@ export class TripService {
 
       return {
         success: isRegistered,
-        htmlData,
       };
     } catch (error) {
       console.error("외박 신청 요청 실패:", error);

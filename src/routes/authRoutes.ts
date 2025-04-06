@@ -192,7 +192,7 @@ export function registerAuthRoutes(
 	// 리프레시 요청 인터페이스 정의
 	interface RefreshRequest {
 		refreshToken: string;
-		hakbeon: string;
+		userNo: string;
 		password: string;
 	}
 
@@ -200,9 +200,9 @@ export function registerAuthRoutes(
 		"/auth/refresh-token",
 		async (request, reply) => {
 			try {
-				const { refreshToken, hakbeon, password } = request.body;
+				const { refreshToken, userNo, password } = request.body;
 
-				if (!refreshToken || !hakbeon || !password) {
+				if (!refreshToken || !userNo || !password) {
 					return reply.code(400).send({
 						status: "error",
 						error: "리프레시 토큰, 학번, 비밀번호가 모두 필요합니다",
@@ -212,7 +212,7 @@ export function registerAuthRoutes(
 				// 토큰 갱신 처리 (학번과 비밀번호 추가)
 				const tokens = await authService.refreshTokens(
 					refreshToken,
-					hakbeon,
+					userNo,
 					password
 				);
 
