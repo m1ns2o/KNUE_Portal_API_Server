@@ -61,7 +61,7 @@ export class AuthService {
     private redisService: RedisService;
     private sqliteService: SqliteService;
 
-    /**
+    /*
      * AuthService 생성자
      */
     constructor(redisService: RedisService) {

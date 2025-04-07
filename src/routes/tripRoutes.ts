@@ -96,13 +96,11 @@ export function registerTripRoutes(server: FastifyInstance, redisService: RedisS
 
         // 토큰을 사용하여 외박 신청 요청
         const success = await TripService.requestTrip(token, params);
+ 
 
         return reply.code(200).send({
           success,
-          message: success
-            ? "외박 신청이 성공적으로 처리되었습니다."
-            : "외박 신청이 처리되었으나, 확인할 수 없습니다. 외박 목록을 확인해주세요.",
-
+          message: "외박 신청이 성공적으로 처리되었습니다."
         });
       } catch (error: unknown) {
         request.log.error(error);
@@ -135,14 +133,14 @@ export function registerTripRoutes(server: FastifyInstance, redisService: RedisS
         const params = request.body;
 
         // 토큰을 사용하여 외박 취소 요청
-        const { success, htmlData } = await TripService.cancelTrip(token, params);
+        const  success = await TripService.cancelTrip(token, params);
 
         return reply.code(200).send({
           success,
           message: success
             ? "외박 취소가 성공적으로 처리되었습니다."
             : "외박 취소가 처리되었으나, 확인할 수 없습니다. 외박 목록을 확인해주세요.",
-          htmlData,
+        
         });
       } catch (error: unknown) {
         request.log.error(error);

@@ -89,35 +89,16 @@ export class TripService {
   }
 
   /**
-   * 쿠키 문자열을 디코딩하는 함수
-   * @param cookies 인코딩된 쿠키 문자열
-   * @returns 디코딩된 쿠키 문자열
-   */
-  // private static decodeCookies(cookies: string): string {
-  //   try {
-  //     // %3D -> = 등의 인코딩된 문자를 디코딩
-  //     // 이미 디코딩된 경우에는 영향 없음
-  //     return decodeURIComponent(cookies);
-  //   } catch (error) {
-  //     console.error("쿠키 디코딩 실패:", error);
-  //     return cookies; // 디코딩 실패 시 원본 반환
-  //   }
-  // }
-
-  /**
    * 외박 신청 페이지를 불러와 필요한 정보를 추출
    * @param token JWT 토큰
-   * @returns enteranceInfoSeq와 HTML 응답
+   * @returns enteranceInfoSeq와 hakbeon
    */
-  public static async fetchTripRequestPage(token: string): Promise<{ enteranceInfoSeq: string; hakbeon: string}> {
+  public static async fetchTripRequestPage(token: string): Promise<{ enteranceInfoSeq: string; hakbeon: string }> {
     try {
       // Redis에서 쿠키 가져오기
       const cookies = await this.getCookiesFromRedis(token);
       
-      // 쿠키 디코딩
-      // const cokkies = this.decodeCookies(cookies);
       console.log("Redis에서 가져온 쿠키:", cookies);
-      // console.log("디코딩된 쿠키:", decodedCookies);
 
       const response = await axios.get(
         `${this.BASE_URL}/dormitory/student/trip?menuId=341&tab=1`,
@@ -136,7 +117,6 @@ export class TripService {
       return {
         enteranceInfoSeq: enteranceInfoSeq || "",
         hakbeon: hakbeon || "",
-        // htmlData,
       };
     } catch (error) {
       console.error("외박 신청 페이지 불러오기 실패:", error);
@@ -147,15 +127,12 @@ export class TripService {
   /**
    * 외박 목록을 불러옴
    * @param token JWT 토큰
-   * @returns 외박 목록과 원본 HTML
+   * @returns 외박 목록
    */
-  public static async fetchTripList(token: string): Promise<{ tripList: TripItem[]; }> {
+  public static async fetchTripList(token: string): Promise<{ tripList: TripItem[] }> {
     try {
       // Redis에서 쿠키 가져오기
       const cookies = await this.getCookiesFromRedis(token);
-      
-      // 쿠키 디코딩
-      // const decodedCookies = this.decodeCookies(cookies);
 
       const response = await axios.get(
         `${this.BASE_URL}/dormitory/student/trip?menuId=341&tab=2`,
@@ -172,7 +149,6 @@ export class TripService {
 
       return {
         tripList,
-        // htmlData,
       };
     } catch (error) {
       console.error("외박 목록 불러오기 실패:", error);
@@ -184,15 +160,12 @@ export class TripService {
    * 외박 신청 요청
    * @param token JWT 토큰
    * @param params 외박 신청 파라미터
-   * @returns 응답 HTML과 처리 결과
+   * @returns 처리 결과
    */
-  public static async requestTrip(token: string, params: TripRequestParams): Promise<{ success: boolean; }> {
+  public static async requestTrip(token: string, params: TripRequestParams): Promise<{ success: boolean }> {
     try {
       // Redis에서 쿠키 가져오기
       const cookies = await this.getCookiesFromRedis(token);
-      
-      // 쿠키 디코딩
-      // const cokkies = this.decodeCookies(cookies);
 
       const formData = new URLSearchParams();
       Object.entries(params).forEach(([key, value]) => {
@@ -210,8 +183,10 @@ export class TripService {
           },
         }
       );
+      console.log(formData.toString());
 
       const htmlData = response.data;
+      // console.log("외박 신청 응답 HTML:", htmlData);
       
       // 신청 성공 여부 확인 (페이지 응답으로 판단)
       const tripList = parseTripHistory(htmlData);
@@ -220,13 +195,17 @@ export class TripService {
           trip.startDate.includes(params.startDate.substring(5).replace(/-/g, ".")) &&
           trip.endDate.includes(params.endDate.substring(5).replace(/-/g, "."))
       );
-
+      
+      if (!isRegistered) {
+        throw new Error("외박 신청이 등록되지 않았습니다");
+      }
+      
       return {
-        success: isRegistered,
+        success: true,
       };
     } catch (error) {
       console.error("외박 신청 요청 실패:", error);
-      throw new Error("외박 신청 처리 중 오류가 발생했습니다");
+      throw error;
     }
   }
 
@@ -234,15 +213,12 @@ export class TripService {
    * 외박 취소 요청
    * @param token JWT 토큰
    * @param params 외박 취소 파라미터
-   * @returns 응답 HTML과 처리 결과
+   * @returns 처리 결과
    */
-  public static async cancelTrip(token: string, params: TripCancelParams): Promise<{ success: boolean; htmlData: string }> {
+  public static async cancelTrip(token: string, params: TripCancelParams): Promise<{ success: boolean }> {
     try {
       // Redis에서 쿠키 가져오기
       const cookies = await this.getCookiesFromRedis(token);
-      
-      // 쿠키 디코딩
-      // const cokkies = this.decodeCookies(cookies);
 
       const formData = new URLSearchParams();
       Object.entries(params).forEach(([key, value]) => {
@@ -271,7 +247,6 @@ export class TripService {
 
       return {
         success: isCanceled,
-        htmlData,
       };
     } catch (error) {
       console.error("외박 취소 요청 실패:", error);
