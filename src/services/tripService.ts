@@ -51,28 +51,14 @@ export class TripService {
   }
 
   /**
-   * JWT 토큰에서 사용자 ID 추출
-   * @param token JWT 토큰
-   * @returns 사용자 ID
-   */
-  private static getUserIdFromToken(token: string): string {
-    try {
-      const decoded = jwt.verify(token, this.SECRET_KEY) as any;
-      return decoded.userId;
-    } catch (error) {
-      throw new Error("유효하지 않은 토큰입니다");
-    }
-  }
-
-  /**
    * Redis에서 쿠키 가져오기
    * @param token JWT 토큰
    * @returns 쿠키 문자열
    */
   private static async getCookiesFromRedis(token: string): Promise<string> {
     try {
-      const userId = this.getUserIdFromToken(token);
-      const redisKey = `auth:${userId}`;
+      // 토큰 기반 키로 Redis에서 쿠키 데이터 가져오기
+      const redisKey = `auth:token:${token}`;
       const redisService = this.getRedisService();
       const cookieData = await redisService.get(redisKey);
       
