@@ -17,10 +17,37 @@ import { registerMenuRoutes } from "./src/routes/menuRoutes";
 import { registerAdminRoutes } from "./src/routes/adminRoutes";
 import { registerTripRoutes } from "./src/routes/tripRoutes";
 
+
+const httpsOptions = (() => {
+	try {
+		const keyPath = "/etc/letsencrypt/live/m1ns2o.com/privkey.pem";
+		const certPath = "/etc/letsencrypt/live/m1ns2o.com/fullchain.pem";
+
+		if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
+			throw new Error(
+				`인증서 파일이 존재하지 않습니다: ${
+					!fs.existsSync(keyPath) ? keyPath : certPath
+				}`
+			);
+		}
+
+		console.log("HTTPS 인증서 파일이 성공적으로 로드되었습니다.");
+		return {
+			https: {
+				key: fs.readFileSync(keyPath),
+				cert: fs.readFileSync(certPath),
+			},
+		};
+	} catch (error) {
+		console.error("HTTPS 설정 오류:", error);
+		process.exit(1);
+	}
+})();
+
 // Fastify 초기화 (HTTPS 옵션과 로거 활성화)
 const server: FastifyInstance = Fastify({
 	logger: true,
-	// ...httpsOptions, // HTTPS 옵션 추가
+	...httpsOptions, // HTTPS 옵션 추가
 });
 
 // JWT 인증 미들웨어 생성
