@@ -1,8 +1,7 @@
-import axios, { all, AxiosResponse } from "axios";
+import axios, { AxiosResponse } from "axios";
 import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import { RedisService } from "./redisService";
-import { SqliteService } from "./sqliteService";
 
 // 로그인 요청을 위한 인터페이스 정의
 export interface LoginRequest {
@@ -45,35 +44,34 @@ export interface RefreshTokenInfo {
     id: string;
     userId: string;
     token: string;
-    expiresAt: Date;
-    createdAt: Date;
+    expiresAt: number; // Unix timestamp (초 단위)
+    createdAt: number; // Unix timestamp (초 단위)
 }
 
 /**
- * JWT 기반 인증 서비스
+ * JWT 기반 인증 서비스 (Redis 사용)
  */
 export class AuthService {
     private static readonly LOGIN_URL = "https://mpot.knue.ac.kr/common/login";
-    private static readonly ACCESS_TOKEN_EXPIRY = 1 * 60; // 15분 (초 단위)
+    private static readonly ACCESS_TOKEN_EXPIRY = 15 * 60; // 15분 (초 단위)
     private static readonly REFRESH_TOKEN_EXPIRY = 30 * 24 * 60 * 60; // 30일 (초 단위)
     private static readonly SECRET_KEY = process.env.JWT_SECRET_KEY || "knue-app-secret-key";
 
     private redisService: RedisService;
-    private sqliteService: SqliteService;
 
     /*
      * AuthService 생성자
      */
     constructor(redisService: RedisService) {
         this.redisService = redisService;
-        this.sqliteService = new SqliteService();
     }
 
     /**
-     * 초기화 - 데이터베이스 초기화
+     * 초기화
      */
     public async initialize(): Promise<void> {
-        await this.sqliteService.initialize();
+        // Redis만 사용하므로 별도 초기화 필요 없음
+        console.log("AuthService 초기화 완료 (Redis 사용)");
     }
 
     /**
@@ -87,13 +85,11 @@ export class AuthService {
             // 원본 서버에 로그인 시도
             const loginResult = await this.loginToOriginalServer(userNo, password);
 
-
             // 쿠키 데이터 확인
             const allFieldsFilled = loginResult.parsedCookies.every(cookie => 
                 Object.values(cookie).every(value => value !== "")
             );
-            // console.log("로그인 응답:", loginResult.parsedCookies[2]);
-            console.log("로그인 응답:", allFieldsFilled);
+            
             if (!loginResult.parsedCookies || !allFieldsFilled) {
                 throw new Error("로그인 성공했지만 쿠키 데이터가 없습니다");
             }
@@ -145,16 +141,26 @@ export class AuthService {
      */
     public async refreshTokens(refreshToken: string, hakbeon: string, password: string): Promise<TokenResponse> {
         try {
-            // 리프레시 토큰 조회
-            const tokenInfo = await this.sqliteService.getRefreshToken(refreshToken);
+            console.log(`리프레시 토큰 검증 시도: ${refreshToken.substring(0, 8)}...`);
             
-            if (!tokenInfo) {
+            // Redis에서 리프레시 토큰 정보 조회
+            const redisRefreshKey = `auth:refresh:${refreshToken}`;
+            const tokenInfoStr = await this.redisService.get(redisRefreshKey);
+            
+            if (!tokenInfoStr) {
+                console.error(`리프레시 토큰을 찾을 수 없음: ${refreshToken.substring(0, 8)}...`);
                 throw new Error("유효하지 않은 리프레시 토큰입니다");
             }
             
+            // 토큰 정보 파싱
+            const tokenInfo = JSON.parse(tokenInfoStr) as RefreshTokenInfo;
+            console.log(`리프레시 토큰 조회 성공: userId=${tokenInfo.userId}`);
+            
             // 토큰 만료 확인
-            if (new Date() > tokenInfo.expiresAt) {
-                await this.sqliteService.deleteRefreshToken(refreshToken);
+            const now = Math.floor(Date.now() / 1000);
+            if (now > tokenInfo.expiresAt) {
+                console.error(`리프레시 토큰 만료됨: ${refreshToken.substring(0, 8)}...`);
+                await this.redisService.delete(redisRefreshKey);
                 throw new Error("리프레시 토큰이 만료되었습니다");
             }
 
@@ -187,8 +193,8 @@ export class AuthService {
 
     /**
      * 사용자 로그아웃 처리
-     * @param userId 사용자 ID
      * @param accessToken 액세스 토큰
+     * @param refreshToken 리프레시 토큰
      */
     public async logout(accessToken: string, refreshToken: string): Promise<void> {
         try {
@@ -196,8 +202,11 @@ export class AuthService {
             const accessTokenRedisKey = `auth:token:${accessToken}`;
             await this.redisService.delete(accessTokenRedisKey);
             
-            // SQLite에서 리프레시 토큰 삭제
-            await this.sqliteService.deleteRefreshToken(refreshToken);
+            // Redis에서 리프레시 토큰 삭제
+            const refreshTokenRedisKey = `auth:refresh:${refreshToken}`;
+            await this.redisService.delete(refreshTokenRedisKey);
+            
+            console.log(`로그아웃 처리 완료: accessToken=${accessToken.substring(0, 8)}..., refreshToken=${refreshToken.substring(0, 8)}...`);
         } catch (error) {
             console.error("로그아웃 처리 중 오류 발생:", error);
             throw error;
@@ -328,25 +337,35 @@ export class AuthService {
 
         // 리프레시 토큰 생성
         const refreshToken = uuidv4();
-        const now = new Date();
-        const expiresAt = new Date(now.getTime() + AuthService.REFRESH_TOKEN_EXPIRY * 1000);
+        const now = Math.floor(Date.now() / 1000);
+        const expiresAt = now + AuthService.REFRESH_TOKEN_EXPIRY;
         
-        // 리프레시 토큰을 데이터베이스에 저장
-        await this.sqliteService.saveRefreshToken({
+        // 리프레시 토큰 정보 생성
+        const refreshTokenInfo: RefreshTokenInfo = {
             id: uuidv4(),
             userId,
             token: refreshToken,
             expiresAt,
             createdAt: now
-        });
+        };
+
+        // 리프레시 토큰을 Redis에 저장
+        const refreshTokenRedisKey = `auth:refresh:${refreshToken}`;
+        await this.redisService.setWithExpiry(
+            refreshTokenRedisKey,
+            JSON.stringify(refreshTokenInfo),
+            AuthService.REFRESH_TOKEN_EXPIRY
+        );
+        console.log(`리프레시 토큰 저장 완료: ${refreshToken.substring(0, 8)}...`);
 
         // 쿠키 데이터를 Redis에 토큰 기준으로 저장
-        const redisKey = `auth:token:${accessToken}`;
+        const accessTokenRedisKey = `auth:token:${accessToken}`;
         await this.redisService.setWithExpiry(
-            redisKey,
+            accessTokenRedisKey,
             JSON.stringify(cookieData),
             AuthService.ACCESS_TOKEN_EXPIRY
         );
+        console.log(`액세스 토큰 저장 완료: ${accessToken.substring(0, 8)}...`);
 
         return {
             accessToken,

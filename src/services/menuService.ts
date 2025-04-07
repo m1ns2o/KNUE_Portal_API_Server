@@ -157,7 +157,7 @@ export class MenuService {
 
 			return menuData;
 		} catch (error) {
-			console.error("fetchAndStoreMenuData error:", error);
+			// console.error("fetchAndStoreMenuData error:", error);
 			throw error;
 		}
 	}
@@ -178,7 +178,7 @@ export class MenuService {
 			// 캐시된 데이터가 없으면 새로 가져와서 저장
 			return await this.fetchAndStoreMenuData();
 		} catch (error) {
-			console.error("Error getting menu data:", error);
+			// console.error("Error getting menu data:", error);
 			throw error;
 		}
 	}
@@ -203,7 +203,7 @@ export class MenuService {
 			}
 			return null;
 		} catch (error) {
-			console.error("getCafeteriaMenu 오류:", error);
+			// console.error("getCafeteriaMenu 오류:", error);
 			throw error;
 		}
 	}
@@ -225,7 +225,7 @@ export class MenuService {
 				dormitory: menuData.dormitory?.[day] || null,
 			};
 		} catch (error) {
-			console.error("getDayMenu 오류:", error);
+			// console.error("getDayMenu 오류:", error);
 			throw error;
 		}
 	}
@@ -274,7 +274,7 @@ export class MenuService {
 					throw new Error("Invalid day of week");
 			}
 
-			console.log("오늘의 요일 키:", todayKey);
+			// console.log("오늘의 요일 키:", todayKey);
 
 			const menuData = await this.getMenuData();
 
@@ -283,7 +283,7 @@ export class MenuService {
 				dormitory: menuData.dormitory?.[todayKey] || null,
 			};
 		} catch (error) {
-			console.error("getTodayMenu 오류:", error);
+			// console.error("getTodayMenu 오류:", error);
 			throw error;
 		}
 	}
